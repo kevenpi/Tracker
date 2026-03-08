@@ -26,14 +26,16 @@ export async function GET(
     const city = request.headers.get("x-vercel-ip-city") || "";
     const region = request.headers.get("x-vercel-ip-region") || "";
     const country = request.headers.get("x-vercel-ip-country") || "";
+    const latitude = request.headers.get("x-vercel-ip-latitude") || "";
+    const longitude = request.headers.get("x-vercel-ip-longitude") || "";
 
     // Fire-and-forget: log the scan without blocking the redirect
     after(async () => {
       try {
         const sql = getDb();
         await sql`
-          INSERT INTO scans (campaign_id, user_agent, referrer, city, region, country)
-          VALUES (${campaignId}, ${userAgent}, ${referrer}, ${city}, ${region}, ${country})
+          INSERT INTO scans (campaign_id, user_agent, referrer, city, region, country, latitude, longitude)
+          VALUES (${campaignId}, ${userAgent}, ${referrer}, ${city}, ${region}, ${country}, ${latitude}, ${longitude})
         `;
       } catch (e) {
         console.error("Failed to log scan:", e);

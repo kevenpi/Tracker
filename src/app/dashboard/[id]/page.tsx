@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import QRCode from "qrcode";
+import ScanMap from "@/components/ScanMap";
 import {
   LineChart,
   Line,
@@ -43,6 +44,8 @@ interface LocationCount {
   region: string;
   country: string;
   count: number;
+  lat: number | null;
+  lng: number | null;
 }
 
 export default function CampaignDetail() {
@@ -239,6 +242,9 @@ export default function CampaignDetail() {
             </button>
           </div>
         </div>
+
+        {/* Scan map */}
+        <ScanMap locations={locationCounts} />
 
         {/* Location breakdown */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden mb-8">

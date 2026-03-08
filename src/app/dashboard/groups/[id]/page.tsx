@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import ScanMap from "@/components/ScanMap";
 import {
   LineChart,
   Line,
@@ -33,11 +34,21 @@ interface DailyCount {
   count: number;
 }
 
+interface LocationCount {
+  city: string;
+  region: string;
+  country: string;
+  count: number;
+  lat: number | null;
+  lng: number | null;
+}
+
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
   const [group, setGroup] = useState<Group | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([]);
+  const [locationCounts, setLocationCounts] = useState<LocationCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +68,7 @@ export default function GroupDetail() {
           count: d.count,
         }))
       );
+      setLocationCounts(data.location_counts || []);
     } catch {
       setError("Failed to load group");
     } finally {
@@ -166,6 +178,9 @@ export default function GroupDetail() {
             </ResponsiveContainer>
           )}
         </div>
+
+        {/* Scan map */}
+        <ScanMap locations={locationCounts} />
 
         {/* Campaigns in group */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">

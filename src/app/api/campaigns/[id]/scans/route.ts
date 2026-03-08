@@ -52,7 +52,9 @@ export async function GET(
         city,
         region,
         country,
-        COUNT(*)::int AS count
+        COUNT(*)::int AS count,
+        AVG(NULLIF(latitude, '')::float) AS lat,
+        AVG(NULLIF(longitude, '')::float) AS lng
       FROM scans
       WHERE campaign_id = ${id}
       GROUP BY city, region, country

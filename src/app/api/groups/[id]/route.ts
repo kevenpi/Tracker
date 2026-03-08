@@ -44,10 +44,26 @@ export async function GET(
       ORDER BY date ASC
     `;
 
+    const locationCounts = await sql`
+      SELECT
+        s.city,
+        s.region,
+        s.country,
+        COUNT(*)::int AS count,
+        AVG(NULLIF(s.latitude, '')::float) AS lat,
+        AVG(NULLIF(s.longitude, '')::float) AS lng
+      FROM scans s
+      INNER JOIN campaigns c ON c.id = s.campaign_id
+      WHERE c.group_id = ${id}
+      GROUP BY s.city, s.region, s.country
+      ORDER BY count DESC
+    `;
+
     return NextResponse.json({
       group: groupRows[0],
       campaigns,
       daily_counts: dailyCounts,
+      location_counts: locationCounts,
     });
   } catch (error) {
     console.error("Failed to fetch group detail:", error);
