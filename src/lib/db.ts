@@ -1,26 +1,18 @@
-import { sql } from "@vercel/postgres";
+import { neon } from "@neondatabase/serverless";
 
-export { sql };
+function getConnectionString() {
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    "";
+  if (!url) {
+    throw new Error("Missing DATABASE_URL or POSTGRES_URL environment variable");
+  }
+  return url;
+}
 
-export async function ensureTables() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS campaigns (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      destination_url TEXT NOT NULL,
-      status TEXT DEFAULT 'active',
-      created_at TIMESTAMP DEFAULT NOW()
-    )
-  `;
-  await sql`
-    CREATE TABLE IF NOT EXISTS scans (
-      id SERIAL PRIMARY KEY,
-      campaign_id TEXT REFERENCES campaigns(id),
-      scanned_at TIMESTAMP DEFAULT NOW(),
-      user_agent TEXT,
-      referrer TEXT
-    )
-  `;
+export function getDb() {
+  return neon(getConnectionString());
 }
 
 export function generateId(): string {

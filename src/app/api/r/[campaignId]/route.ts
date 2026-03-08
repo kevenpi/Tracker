@@ -1,4 +1,4 @@
-import { sql } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { after } from "next/server";
 
@@ -11,21 +11,23 @@ export async function GET(
   const { campaignId } = await params;
 
   try {
-    const result = await sql`
+    const sql = getDb();
+    const rows = await sql`
       SELECT destination_url, status FROM campaigns WHERE id = ${campaignId}
     `;
 
-    if (result.rows.length === 0 || result.rows[0].status !== "active") {
+    if (rows.length === 0 || rows[0].status !== "active") {
       return NextResponse.redirect(DEFAULT_URL, 302);
     }
 
-    const destination = result.rows[0].destination_url;
+    const destination = rows[0].destination_url;
     const userAgent = request.headers.get("user-agent") || "";
     const referrer = request.headers.get("referer") || "";
 
     // Fire-and-forget: log the scan without blocking the redirect
     after(async () => {
       try {
+        const sql = getDb();
         await sql`
           INSERT INTO scans (campaign_id, user_agent, referrer)
           VALUES (${campaignId}, ${userAgent}, ${referrer})

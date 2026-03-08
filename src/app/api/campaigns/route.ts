@@ -1,9 +1,10 @@
-import { sql, generateId } from "@/lib/db";
+import { getDb, generateId } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const result = await sql`
+    const sql = getDb();
+    const rows = await sql`
       SELECT
         c.id,
         c.name,
@@ -16,7 +17,7 @@ export async function GET() {
       GROUP BY c.id, c.name, c.destination_url, c.status, c.created_at
       ORDER BY c.created_at DESC
     `;
-    return NextResponse.json(result.rows);
+    return NextResponse.json(rows);
   } catch (error) {
     console.error("Failed to fetch campaigns:", error);
     return NextResponse.json({ error: "Failed to fetch campaigns" }, { status: 500 });
@@ -35,14 +36,15 @@ export async function POST(request: NextRequest) {
     }
 
     const id = generateId();
+    const sql = getDb();
 
-    const result = await sql`
+    const rows = await sql`
       INSERT INTO campaigns (id, name, destination_url)
       VALUES (${id}, ${name}, ${destination_url})
       RETURNING *
     `;
 
-    return NextResponse.json(result.rows[0], { status: 201 });
+    return NextResponse.json(rows[0], { status: 201 });
   } catch (error) {
     console.error("Failed to create campaign:", error);
     return NextResponse.json({ error: "Failed to create campaign" }, { status: 500 });
