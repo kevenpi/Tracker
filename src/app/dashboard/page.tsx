@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import QRCode from "qrcode";
 
 interface Campaign {
@@ -199,7 +200,11 @@ export default function Dashboard() {
               <tbody>
                 {campaigns.map((campaign) => (
                   <tr key={campaign.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                    <td className="px-4 py-3 font-medium">{campaign.name}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link href={`/dashboard/${campaign.id}`} className="hover:text-blue-400 transition-colors">
+                        {campaign.name}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-gray-400">
                       <a
                         href={campaign.destination_url}
