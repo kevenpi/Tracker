@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; skipped: number; groups_created: string[] } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importGroupId, setImportGroupId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -258,6 +259,9 @@ export default function Dashboard() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      if (importGroupId) {
+        formData.append("group_id", importGroupId);
+      }
 
       const res = await fetch("/api/campaigns/import", {
         method: "POST",
@@ -297,7 +301,7 @@ export default function Dashboard() {
           </div>
           <div className="flex gap-3">
             <button
-              onClick={() => { setShowImportModal(true); setImportResult(null); setImportError(null); }}
+              onClick={() => { setShowImportModal(true); setImportResult(null); setImportError(null); setImportGroupId(""); }}
               className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors"
             >
               Import CSV
@@ -671,6 +675,20 @@ export default function Dashboard() {
                 accept=".csv"
                 className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-zinc-700 file:text-sm file:bg-zinc-800 file:text-gray-300 hover:file:bg-zinc-700 file:transition-colors file:cursor-pointer"
               />
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Import into group</label>
+                <select
+                  value={importGroupId}
+                  onChange={(e) => setImportGroupId(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                >
+                  <option value="">No group (or use CSV &quot;group&quot; column)</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">CSV &quot;group&quot; column overrides this if present.</p>
+              </div>
               {importError && (
                 <div className="px-3 py-2 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400">
                   {importError}

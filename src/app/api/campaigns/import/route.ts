@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const fallbackGroupId = (formData.get("group_id") as string | null) || null;
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -88,6 +89,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Priority: CSV group column > dropdown selection > none
       let groupId: string | null = null;
 
       if (hasGroupCol && row.group?.trim()) {
@@ -104,6 +106,8 @@ export async function POST(request: NextRequest) {
           groupId = newGroupId;
           groupsCreated.push(groupName);
         }
+      } else if (fallbackGroupId) {
+        groupId = fallbackGroupId;
       }
 
       const id = generateId();
