@@ -39,6 +39,11 @@ export default function Dashboard() {
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; groups_created: string[] } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const fetchCampaigns = useCallback(async () => {
@@ -242,6 +247,41 @@ export default function Dashboard() {
     URL.revokeObjectURL(link.href);
   }
 
+  async function handleImport() {
+    const file = fileInputRef.current?.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/campaigns/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setImportError(data.error || "Import failed");
+        return;
+      }
+
+      setImportResult(data);
+      await fetchCampaigns();
+      await fetchGroups();
+    } catch {
+      setImportError("Failed to upload file");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   function truncateUrl(url: string, maxLen = 35) {
     return url.length > maxLen ? url.slice(0, maxLen) + "..." : url;
   }
@@ -256,6 +296,12 @@ export default function Dashboard() {
             <p className="text-gray-400 text-sm mt-1">Track QR code scans across outreach campaigns</p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={() => { setShowImportModal(true); setImportResult(null); setImportError(null); }}
+              className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors"
+            >
+              Import CSV
+            </button>
             <button
               onClick={handleExportCsv}
               disabled={campaigns.length === 0}
@@ -606,6 +652,56 @@ export default function Dashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Import CSV Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowImportModal(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-2">Import Campaigns from CSV</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              CSV should have columns: <span className="text-gray-300">name</span>, <span className="text-gray-300">destination_url</span>, and optionally <span className="text-gray-300">group</span>.
+            </p>
+            <div className="space-y-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-zinc-700 file:text-sm file:bg-zinc-800 file:text-gray-300 hover:file:bg-zinc-700 file:transition-colors file:cursor-pointer"
+              />
+              {importError && (
+                <div className="px-3 py-2 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400">
+                  {importError}
+                </div>
+              )}
+              {importResult && (
+                <div className="px-3 py-2 bg-emerald-900/30 border border-emerald-800 rounded-lg text-sm text-emerald-400">
+                  Created {importResult.created} campaign{importResult.created !== 1 ? "s" : ""}.
+                  {importResult.skipped > 0 && ` Skipped ${importResult.skipped} row${importResult.skipped !== 1 ? "s" : ""} (missing data).`}
+                  {importResult.groups_created.length > 0 && ` New groups: ${importResult.groups_created.join(", ")}.`}
+                </div>
+              )}
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(false)}
+                  className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors"
+                >
+                  {importResult ? "Done" : "Cancel"}
+                </button>
+                {!importResult && (
+                  <button
+                    onClick={handleImport}
+                    disabled={importing}
+                    className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-medium disabled:opacity-50"
+                  >
+                    {importing ? "Importing..." : "Import"}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
