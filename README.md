@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cal-KIDS QR Code Tracking Platform
 
-## Getting Started
+Track QR code scans across Cal-KIDS outreach campaigns (flyers, events, locations). Each campaign gets a unique short URL -- QR codes point to that URL, a serverless function logs the scan, then redirects to the real destination.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js (App Router)
+- Vercel Postgres
+- Tailwind CSS
+- `qrcode` npm package for QR generation
+
+## Setup
+
+### 1. Create a Vercel Postgres Database
+
+Go to [Vercel Storage](https://vercel.com/docs/storage/vercel-postgres/quickstart) and create a new Postgres database. Connect it to your project -- Vercel will auto-inject the required environment variables.
+
+### 2. Create Tables
+
+Run this SQL in your database (via the Vercel dashboard SQL editor or any Postgres client):
+
+```sql
+CREATE TABLE campaigns (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  destination_url TEXT NOT NULL,
+  status TEXT DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE scans (
+  id SERIAL PRIMARY KEY,
+  campaign_id TEXT REFERENCES campaigns(id),
+  scanned_at TIMESTAMP DEFAULT NOW(),
+  user_agent TEXT,
+  referrer TEXT
+);
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 3. Environment Variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+If running locally, create a `.env.local` file with your Postgres connection string. Vercel injects these automatically when a Postgres database is connected:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+POSTGRES_URL=your_connection_string
+```
 
-## Learn More
+### 4. Install and Run
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 5. Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npx vercel deploy
+```
 
-## Deploy on Vercel
+Or connect the repo to Vercel for automatic deployments on push.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## How It Works
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Create a campaign in the dashboard (`/dashboard`) with a name and destination URL
+2. Each campaign gets a unique tracking URL: `https://your-domain.vercel.app/api/r/{campaignId}`
+3. Generate and download a QR code for that URL
+4. When someone scans the QR code, the app logs the scan (timestamp, user agent, referrer) and redirects them to the destination
+5. View scan counts and manage campaigns from the dashboard
+
+## API Routes
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/r/[campaignId]` | Log scan and redirect (302) |
+| GET | `/api/campaigns` | List all campaigns with scan counts |
+| POST | `/api/campaigns` | Create a new campaign |
+| PATCH | `/api/campaigns/[id]` | Update campaign status/name/url |
+| DELETE | `/api/campaigns/[id]` | Delete campaign and its scans |
+| GET | `/api/campaigns/[id]/qr` | Generate QR code PNG |
