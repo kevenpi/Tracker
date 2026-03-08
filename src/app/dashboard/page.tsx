@@ -19,6 +19,9 @@ export default function Dashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState<Campaign | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", destination_url: "" });
+  const [saving, setSaving] = useState(false);
   const [createForm, setCreateForm] = useState({ name: "", destination_url: "" });
   const [creating, setCreating] = useState(false);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,6 +104,32 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error("Failed to delete campaign:", err);
+    }
+  }
+
+  function openEdit(campaign: Campaign) {
+    setEditCampaign(campaign);
+    setEditForm({ name: campaign.name, destination_url: campaign.destination_url });
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editCampaign) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/campaigns/${editCampaign.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        setEditCampaign(null);
+        await fetchCampaigns();
+      }
+    } catch (err) {
+      console.error("Failed to update campaign:", err);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -234,6 +263,13 @@ export default function Dashboard() {
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
+                          onClick={() => openEdit(campaign)}
+                          className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors"
+                          title="Edit campaign"
+                        >
+                          Edit
+                        </button>
+                        <button
                           onClick={() => setShowQrModal(campaign)}
                           className="px-2 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 transition-colors"
                           title="View QR code"
@@ -325,6 +361,55 @@ export default function Dashboard() {
                   className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-medium disabled:opacity-50"
                 >
                   {creating ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Campaign Modal */}
+      {editCampaign && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setEditCampaign(null)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4">Edit Campaign</h2>
+            <form onSubmit={handleEdit} className="space-y-4">
+              <div>
+                <label htmlFor="edit-name" className="block text-sm text-gray-400 mb-1">Campaign Name</label>
+                <input
+                  id="edit-name"
+                  type="text"
+                  required
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="edit-url" className="block text-sm text-gray-400 mb-1">Destination URL</label>
+                <input
+                  id="edit-url"
+                  type="url"
+                  required
+                  value={editForm.destination_url}
+                  onChange={(e) => setEditForm({ ...editForm, destination_url: e.target.value })}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditCampaign(null)}
+                  className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-medium disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save"}
                 </button>
               </div>
             </form>
