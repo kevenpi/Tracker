@@ -11,10 +11,13 @@ export async function GET() {
         c.destination_url,
         c.status,
         c.created_at,
+        c.group_id,
+        g.name AS group_name,
         COUNT(s.id)::int AS scan_count
       FROM campaigns c
       LEFT JOIN scans s ON s.campaign_id = c.id
-      GROUP BY c.id, c.name, c.destination_url, c.status, c.created_at
+      LEFT JOIN groups g ON g.id = c.group_id
+      GROUP BY c.id, c.name, c.destination_url, c.status, c.created_at, c.group_id, g.name
       ORDER BY c.created_at DESC
     `;
     return NextResponse.json(rows);
@@ -26,7 +29,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, destination_url } = await request.json();
+    const { name, destination_url, group_id } = await request.json();
 
     if (!name || !destination_url) {
       return NextResponse.json(
@@ -39,8 +42,8 @@ export async function POST(request: NextRequest) {
     const sql = getDb();
 
     const rows = await sql`
-      INSERT INTO campaigns (id, name, destination_url)
-      VALUES (${id}, ${name}, ${destination_url})
+      INSERT INTO campaigns (id, name, destination_url, group_id)
+      VALUES (${id}, ${name}, ${destination_url}, ${group_id || null})
       RETURNING *
     `;
 

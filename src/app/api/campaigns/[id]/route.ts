@@ -37,6 +37,9 @@ export async function PATCH(
     if (body.destination_url !== undefined) {
       await sql`UPDATE campaigns SET destination_url = ${body.destination_url} WHERE id = ${id}`;
     }
+    if (body.group_id !== undefined) {
+      await sql`UPDATE campaigns SET group_id = ${body.group_id || null} WHERE id = ${id}`;
+    }
 
     const rows = await sql`SELECT * FROM campaigns WHERE id = ${id}`;
 

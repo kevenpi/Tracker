@@ -28,10 +28,20 @@ interface Scan {
   scanned_at: string;
   user_agent: string;
   referrer: string;
+  city: string;
+  region: string;
+  country: string;
 }
 
 interface DailyCount {
   date: string;
+  count: number;
+}
+
+interface LocationCount {
+  city: string;
+  region: string;
+  country: string;
   count: number;
 }
 
@@ -40,6 +50,7 @@ export default function CampaignDetail() {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [scans, setScans] = useState<Scan[]>([]);
   const [dailyCounts, setDailyCounts] = useState<DailyCount[]>([]);
+  const [locationCounts, setLocationCounts] = useState<LocationCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -54,6 +65,7 @@ export default function CampaignDetail() {
       const data = await res.json();
       setCampaign(data.campaign);
       setScans(data.scans);
+      setLocationCounts(data.location_counts || []);
       setDailyCounts(
         data.daily_counts.map((d: DailyCount) => ({
           date: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
@@ -90,6 +102,11 @@ export default function CampaignDetail() {
     link.download = `qr-${campaign.id}.png`;
     link.href = qrCanvasRef.current.toDataURL("image/png");
     link.click();
+  }
+
+  function formatLocation(scan: Scan) {
+    const parts = [scan.city, scan.region, scan.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : "—";
   }
 
   if (loading) {
@@ -223,6 +240,39 @@ export default function CampaignDetail() {
           </div>
         </div>
 
+        {/* Location breakdown */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden mb-8">
+          <div className="px-4 py-3 border-b border-zinc-800">
+            <h2 className="text-sm font-medium text-gray-400">Scans by Location</h2>
+          </div>
+          {locationCounts.length === 0 || locationCounts.every((l) => !l.city && !l.region && !l.country) ? (
+            <div className="p-8 text-center text-gray-600 text-sm">No location data yet</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 text-left text-gray-400">
+                  <th className="px-4 py-3 font-medium">City</th>
+                  <th className="px-4 py-3 font-medium">Region</th>
+                  <th className="px-4 py-3 font-medium">Country</th>
+                  <th className="px-4 py-3 font-medium text-right">Scans</th>
+                </tr>
+              </thead>
+              <tbody>
+                {locationCounts
+                  .filter((l) => l.city || l.region || l.country)
+                  .map((loc, i) => (
+                    <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                      <td className="px-4 py-3 text-gray-300">{loc.city || "—"}</td>
+                      <td className="px-4 py-3 text-gray-400">{loc.region || "—"}</td>
+                      <td className="px-4 py-3 text-gray-400">{loc.country || "—"}</td>
+                      <td className="px-4 py-3 text-right tabular-nums">{loc.count}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
         {/* Recent scans table */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-zinc-800">
@@ -235,6 +285,7 @@ export default function CampaignDetail() {
               <thead>
                 <tr className="border-b border-zinc-800 text-left text-gray-400">
                   <th className="px-4 py-3 font-medium">Timestamp</th>
+                  <th className="px-4 py-3 font-medium">Location</th>
                   <th className="px-4 py-3 font-medium">User Agent</th>
                 </tr>
               </thead>
@@ -243,6 +294,9 @@ export default function CampaignDetail() {
                   <tr key={scan.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                     <td className="px-4 py-3 text-gray-300 whitespace-nowrap">
                       {new Date(scan.scanned_at).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap">
+                      {formatLocation(scan)}
                     </td>
                     <td className="px-4 py-3 text-gray-500 truncate max-w-md" title={scan.user_agent}>
                       {scan.user_agent || "—"}

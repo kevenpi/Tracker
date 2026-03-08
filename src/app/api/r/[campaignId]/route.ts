@@ -23,14 +23,17 @@ export async function GET(
     const destination = rows[0].destination_url;
     const userAgent = request.headers.get("user-agent") || "";
     const referrer = request.headers.get("referer") || "";
+    const city = request.headers.get("x-vercel-ip-city") || "";
+    const region = request.headers.get("x-vercel-ip-region") || "";
+    const country = request.headers.get("x-vercel-ip-country") || "";
 
     // Fire-and-forget: log the scan without blocking the redirect
     after(async () => {
       try {
         const sql = getDb();
         await sql`
-          INSERT INTO scans (campaign_id, user_agent, referrer)
-          VALUES (${campaignId}, ${userAgent}, ${referrer})
+          INSERT INTO scans (campaign_id, user_agent, referrer, city, region, country)
+          VALUES (${campaignId}, ${userAgent}, ${referrer}, ${city}, ${region}, ${country})
         `;
       } catch (e) {
         console.error("Failed to log scan:", e);

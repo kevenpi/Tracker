@@ -17,11 +17,12 @@ export async function GET(
         c.destination_url,
         c.status,
         c.created_at,
+        c.group_id,
         COUNT(s.id)::int AS scan_count
       FROM campaigns c
       LEFT JOIN scans s ON s.campaign_id = c.id
       WHERE c.id = ${id}
-      GROUP BY c.id, c.name, c.destination_url, c.status, c.created_at
+      GROUP BY c.id, c.name, c.destination_url, c.status, c.created_at, c.group_id
     `;
 
     if (campaignRows.length === 0) {
@@ -29,7 +30,7 @@ export async function GET(
     }
 
     const scans = await sql`
-      SELECT id, scanned_at, user_agent, referrer
+      SELECT id, scanned_at, user_agent, referrer, city, region, country
       FROM scans
       WHERE campaign_id = ${id}
       ORDER BY scanned_at DESC
@@ -46,10 +47,23 @@ export async function GET(
       ORDER BY date ASC
     `;
 
+    const locationCounts = await sql`
+      SELECT
+        city,
+        region,
+        country,
+        COUNT(*)::int AS count
+      FROM scans
+      WHERE campaign_id = ${id}
+      GROUP BY city, region, country
+      ORDER BY count DESC
+    `;
+
     return NextResponse.json({
       campaign: campaignRows[0],
       scans,
       daily_counts: dailyCounts,
+      location_counts: locationCounts,
     });
   } catch (error) {
     console.error("Failed to fetch campaign detail:", error);

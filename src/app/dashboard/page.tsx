@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 
@@ -11,19 +11,34 @@ interface Campaign {
   status: string;
   created_at: string;
   scan_count: number;
+  group_id: string | null;
+  group_name: string | null;
+}
+
+interface Group {
+  id: string;
+  name: string;
+  created_at: string;
+  campaign_count: number;
 }
 
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState<Campaign | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [editCampaign, setEditCampaign] = useState<Campaign | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", destination_url: "" });
+  const [editForm, setEditForm] = useState({ name: "", destination_url: "", group_id: "" });
   const [saving, setSaving] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: "", destination_url: "" });
+  const [createForm, setCreateForm] = useState({ name: "", destination_url: "", group_id: "" });
   const [creating, setCreating] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedGroupId, setSelectedGroupId] = useState("");
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const fetchCampaigns = useCallback(async () => {
@@ -40,9 +55,22 @@ export default function Dashboard() {
     }
   }, []);
 
+  const fetchGroups = useCallback(async () => {
+    try {
+      const res = await fetch("/api/groups");
+      if (res.ok) {
+        const data = await res.json();
+        setGroups(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch groups:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchCampaigns();
-  }, [fetchCampaigns]);
+    fetchGroups();
+  }, [fetchCampaigns, fetchGroups]);
 
   useEffect(() => {
     if (showQrModal && qrCanvasRef.current) {
@@ -57,6 +85,23 @@ export default function Dashboard() {
     }
   }, [showQrModal]);
 
+  const filteredCampaigns = useMemo(() => {
+    let result = campaigns;
+    if (selectedGroupId) {
+      result = result.filter((c) => c.group_id === selectedGroupId);
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.destination_url.toLowerCase().includes(q) ||
+          (c.group_name && c.group_name.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [campaigns, selectedGroupId, searchQuery]);
+
   const totalScans = campaigns.reduce((sum, c) => sum + c.scan_count, 0);
   const avgScans = campaigns.length > 0 ? (totalScans / campaigns.length).toFixed(1) : "0";
 
@@ -67,17 +112,43 @@ export default function Dashboard() {
       const res = await fetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
+        body: JSON.stringify({
+          name: createForm.name,
+          destination_url: createForm.destination_url,
+          group_id: createForm.group_id || null,
+        }),
       });
       if (res.ok) {
-        setCreateForm({ name: "", destination_url: "" });
+        setCreateForm({ name: "", destination_url: "", group_id: "" });
         setShowCreateModal(false);
         await fetchCampaigns();
+        await fetchGroups();
       }
     } catch (err) {
       console.error("Failed to create campaign:", err);
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleCreateGroup(e: React.FormEvent) {
+    e.preventDefault();
+    setCreatingGroup(true);
+    try {
+      const res = await fetch("/api/groups", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: groupName }),
+      });
+      if (res.ok) {
+        setGroupName("");
+        setShowCreateGroupModal(false);
+        await fetchGroups();
+      }
+    } catch (err) {
+      console.error("Failed to create group:", err);
+    } finally {
+      setCreatingGroup(false);
     }
   }
 
@@ -101,6 +172,7 @@ export default function Dashboard() {
       if (res.ok) {
         setDeleteConfirm(null);
         await fetchCampaigns();
+        await fetchGroups();
       }
     } catch (err) {
       console.error("Failed to delete campaign:", err);
@@ -109,7 +181,11 @@ export default function Dashboard() {
 
   function openEdit(campaign: Campaign) {
     setEditCampaign(campaign);
-    setEditForm({ name: campaign.name, destination_url: campaign.destination_url });
+    setEditForm({
+      name: campaign.name,
+      destination_url: campaign.destination_url,
+      group_id: campaign.group_id || "",
+    });
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -120,11 +196,16 @@ export default function Dashboard() {
       const res = await fetch(`/api/campaigns/${editCampaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify({
+          name: editForm.name,
+          destination_url: editForm.destination_url,
+          group_id: editForm.group_id || null,
+        }),
       });
       if (res.ok) {
         setEditCampaign(null);
         await fetchCampaigns();
+        await fetchGroups();
       }
     } catch (err) {
       console.error("Failed to update campaign:", err);
@@ -142,12 +223,13 @@ export default function Dashboard() {
   }
 
   function handleExportCsv() {
-    const headers = ["ID", "Name", "Destination URL", "Status", "Scan Count", "Created At"];
+    const headers = ["ID", "Name", "Destination URL", "Status", "Group", "Scan Count", "Created At"];
     const rows = campaigns.map((c) => [
       c.id,
       `"${c.name}"`,
       `"${c.destination_url}"`,
       c.status,
+      `"${c.group_name || ""}"`,
       c.scan_count,
       new Date(c.created_at).toISOString(),
     ]);
@@ -160,7 +242,7 @@ export default function Dashboard() {
     URL.revokeObjectURL(link.href);
   }
 
-  function truncateUrl(url: string, maxLen = 40) {
+  function truncateUrl(url: string, maxLen = 35) {
     return url.length > maxLen ? url.slice(0, maxLen) + "..." : url;
   }
 
@@ -180,6 +262,12 @@ export default function Dashboard() {
               className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Export CSV
+            </button>
+            <button
+              onClick={() => setShowCreateGroupModal(true)}
+              className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors"
+            >
+              New Group
             </button>
             <button
               onClick={() => setShowCreateModal(true)}
@@ -206,19 +294,45 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Search and filter bar */}
+        <div className="flex gap-3 mb-4">
+          <input
+            type="text"
+            placeholder="Search campaigns..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:outline-none focus:border-zinc-600 placeholder-gray-600"
+          />
+          <select
+            value={selectedGroupId}
+            onChange={(e) => setSelectedGroupId(e.target.value)}
+            className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm focus:outline-none focus:border-zinc-600 text-gray-300"
+          >
+            <option value="">All groups</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Table */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-gray-500">Loading campaigns...</div>
-          ) : campaigns.length === 0 ? (
+          ) : filteredCampaigns.length === 0 ? (
             <div className="p-12 text-center text-gray-500">
-              No campaigns yet. Create one to get started.
+              {campaigns.length === 0
+                ? "No campaigns yet. Create one to get started."
+                : "No campaigns match your search."}
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-zinc-800 text-left text-gray-400">
                   <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Group</th>
                   <th className="px-4 py-3 font-medium">Destination</th>
                   <th className="px-4 py-3 font-medium text-right">Scans</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -227,12 +341,24 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {campaigns.map((campaign) => (
+                {filteredCampaigns.map((campaign) => (
                   <tr key={campaign.id} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
                     <td className="px-4 py-3 font-medium">
                       <Link href={`/dashboard/${campaign.id}`} className="hover:text-blue-400 transition-colors">
                         {campaign.name}
                       </Link>
+                    </td>
+                    <td className="px-4 py-3 text-gray-400">
+                      {campaign.group_name ? (
+                        <Link
+                          href={`/dashboard/groups/${campaign.group_id}`}
+                          className="hover:text-blue-400 transition-colors"
+                        >
+                          {campaign.group_name}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-600">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       <a
@@ -347,6 +473,20 @@ export default function Dashboard() {
                   placeholder="https://..."
                 />
               </div>
+              <div>
+                <label htmlFor="group" className="block text-sm text-gray-400 mb-1">Group (optional)</label>
+                <select
+                  id="group"
+                  value={createForm.group_id}
+                  onChange={(e) => setCreateForm({ ...createForm, group_id: e.target.value })}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-gray-300"
+                >
+                  <option value="">None</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-3 justify-end pt-2">
                 <button
                   type="button"
@@ -361,6 +501,45 @@ export default function Dashboard() {
                   className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-medium disabled:opacity-50"
                 >
                   {creating ? "Creating..." : "Create"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Group Modal */}
+      {showCreateGroupModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowCreateGroupModal(false)}>
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold mb-4">Create Group</h2>
+            <form onSubmit={handleCreateGroup} className="space-y-4">
+              <div>
+                <label htmlFor="group-name" className="block text-sm text-gray-400 mb-1">Group Name</label>
+                <input
+                  id="group-name"
+                  type="text"
+                  required
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="e.g. Library Events"
+                />
+              </div>
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateGroupModal(false)}
+                  className="px-4 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg border border-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingGroup}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors font-medium disabled:opacity-50"
+                >
+                  {creatingGroup ? "Creating..." : "Create"}
                 </button>
               </div>
             </form>
@@ -395,6 +574,20 @@ export default function Dashboard() {
                   onChange={(e) => setEditForm({ ...editForm, destination_url: e.target.value })}
                   className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                 />
+              </div>
+              <div>
+                <label htmlFor="edit-group" className="block text-sm text-gray-400 mb-1">Group</label>
+                <select
+                  id="edit-group"
+                  value={editForm.group_id}
+                  onChange={(e) => setEditForm({ ...editForm, group_id: e.target.value })}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-gray-300"
+                >
+                  <option value="">None</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-3 justify-end pt-2">
                 <button
