@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// A "folder" that trackers can be organized into (Drive-style).
+model Group {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  qrCodes   QrCode[]
+
+  @@index([createdAt])
+}
+
+model QrCode {
+  id             String    @id @default(cuid())
+  slug           String    @unique
+  name           String
+  destinationUrl String
+  isActive       Boolean   @default(true)
+  expiresAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Optional folder. Deleting a folder moves its trackers back to root (null).
+  groupId        String?
+  group          Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  scans          Scan[]
+
+  @@index([createdAt])
+  @@index([groupId])
+}
+
+model Scan {
+  id         String   @id @default(cuid())
+  qrCodeId   String
+  qrCode     QrCode   @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+  scannedAt  DateTime @default(now())
+
+  ipAddress  String?
+  // IP-based geolocation is city-level APPROXIMATE (derived from the network,
+  // not GPS). country is fairly reliable; city/region are best-effort.
+  country    String?
+  region     String?
+  city       String?
+  lat        Float?
+  lng        Float?
+
+  userAgent  String?
+  deviceType String?
+  os         String?
+  browser    String?
+  referrer   String?
+
+  @@index([qrCodeId, scannedAt])
+  @@index([qrCodeId, ipAddress])
+}
