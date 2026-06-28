@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import TrackerMenu from "./TrackerMenu";
+import FolderMenu from "./FolderMenu";
 
 export type FolderItem = {
   id: string;
@@ -95,29 +96,8 @@ export default function DriveBoard({
     }
   }
 
-  const showRootTarget = dragging !== null && currentGroupId !== null;
-
   return (
     <div className={busy ? "pointer-events-none opacity-60" : undefined}>
-      {/* Drop-to-top-level strip, only while dragging inside a subfolder */}
-      {showRootTarget && (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver("__root__");
-          }}
-          onDragLeave={() => setOver(null)}
-          onDrop={(e) => moveTo(null, e)}
-          className={`mb-4 rounded-lg border border-dashed p-3 text-center text-sm transition ${
-            over === "__root__"
-              ? "border-blue-500 bg-blue-950/40 text-blue-300"
-              : "border-zinc-700 text-zinc-500"
-          }`}
-        >
-          ⤴ Drop here to move to the top level
-        </div>
-      )}
-
       {/* Folders */}
       {folders.length > 0 && (
         <section className="mb-8">
@@ -144,7 +124,7 @@ export default function DriveBoard({
                   }}
                   onDragLeave={() => setOver((o) => (o === f.id ? null : o))}
                   onDrop={(e) => moveTo(f.id, e)}
-                  className={`flex items-center gap-3 rounded-xl border bg-zinc-900 p-3 transition ${
+                  className={`flex items-center gap-2 rounded-xl border bg-zinc-900 p-3 transition ${
                     isOver
                       ? "border-blue-500 bg-blue-950/30 ring-1 ring-blue-500"
                       : "border-zinc-800 hover:border-zinc-700 hover:bg-zinc-800/60"
@@ -169,6 +149,11 @@ export default function DriveBoard({
                       </div>
                     </div>
                   </Link>
+                  <FolderMenu
+                    folderId={f.id}
+                    name={f.name}
+                    folders={allFolders}
+                  />
                 </div>
               );
             })}

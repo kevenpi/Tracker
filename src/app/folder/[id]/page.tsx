@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { shortUrl, qrPngDataUrl } from "@/lib/qr";
 import Toolbar from "@/components/Toolbar";
 import FolderActions from "@/components/FolderActions";
+import FolderBreadcrumb from "@/components/FolderBreadcrumb";
 import DriveBoard, {
   type FolderItem,
   type TrackerItem,
@@ -81,21 +81,10 @@ export default async function FolderPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <nav className="flex flex-wrap items-center gap-1 text-sm text-zinc-500">
-            <Link href="/" className="hover:text-zinc-300">
-              My Trackers
-            </Link>
-            {ancestors.map((a) => (
-              <span key={a.id} className="flex items-center gap-1">
-                <span>/</span>
-                <Link href={`/folder/${a.id}`} className="hover:text-zinc-300">
-                  {a.name}
-                </Link>
-              </span>
-            ))}
-            <span>/</span>
-            <span className="text-zinc-300">{folder.name}</span>
-          </nav>
+          <FolderBreadcrumb
+            ancestors={ancestors}
+            current={{ id: folder.id, name: folder.name }}
+          />
           <h1 className="mt-1 text-2xl font-semibold text-zinc-100">
             {folder.name}
           </h1>
