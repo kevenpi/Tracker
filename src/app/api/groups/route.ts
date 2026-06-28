@@ -34,6 +34,11 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const group = await prisma.group.create({ data: { name } });
+  // Optional parent folder, so folders can be created already nested.
+  const rawParent = (body as { parentId?: unknown })?.parentId;
+  const parentId =
+    typeof rawParent === "string" && rawParent.trim() ? rawParent.trim() : null;
+
+  const group = await prisma.group.create({ data: { name, parentId } });
   return NextResponse.json({ group }, { status: 201 });
 }

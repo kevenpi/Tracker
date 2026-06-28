@@ -142,3 +142,87 @@ export async function resolveGeo(h: Headers): Promise<GeoData> {
   if (fromHeaders) return fromHeaders;
   return fromFallbackApi(ip);
 }
+
+// ---------------------------------------------------------------------------
+// Timezone-assisted correction.
+//
+// IP geolocation on cellular networks is frequently off by an entire state
+// (carrier CGNAT registers the IP block far from the user). The browser's IANA
+// time zone — reported with NO permission prompt — reflects the device's actual
+// setting, so when the IP's US state sits in a different time zone than the
+// browser reports, we trust the time zone and relabel the region.
+// This is still region-level, not GPS: we never invent a specific city.
+// ---------------------------------------------------------------------------
+
+// US state/territory → predominant time-zone bucket.
+const STATE_ZONE: Record<string, string> = {
+  // Pacific
+  CA: "PT", NV: "PT", OR: "PT", WA: "PT",
+  // Mountain
+  AZ: "MT", CO: "MT", ID: "MT", MT: "MT", NM: "MT", UT: "MT", WY: "MT",
+  // Central
+  AL: "CT", AR: "CT", IL: "CT", IA: "CT", KS: "CT", LA: "CT", MN: "CT",
+  MS: "CT", MO: "CT", ND: "CT", NE: "CT", OK: "CT", SD: "CT", TX: "CT",
+  WI: "CT", TN: "CT",
+  // Eastern
+  CT: "ET", DE: "ET", FL: "ET", GA: "ET", IN: "ET", KY: "ET", ME: "ET",
+  MD: "ET", MA: "ET", MI: "ET", NH: "ET", NJ: "ET", NY: "ET", NC: "ET",
+  OH: "ET", PA: "ET", RI: "ET", SC: "ET", VT: "ET", VA: "ET", WV: "ET",
+  DC: "ET",
+  AK: "AKT", HI: "HT",
+};
+
+// IANA zone → { bucket, representative point + label } for a US relabel.
+const TZ_INFO: Record<
+  string,
+  { zone: string; label: string; lat: number; lng: number }
+> = {
+  "America/Los_Angeles": { zone: "PT", label: "Pacific Time (US)", lat: 37.77, lng: -122.42 },
+  "America/Denver": { zone: "MT", label: "Mountain Time (US)", lat: 39.74, lng: -104.99 },
+  "America/Phoenix": { zone: "MT", label: "Mountain Time (US)", lat: 33.45, lng: -112.07 },
+  "America/Chicago": { zone: "CT", label: "Central Time (US)", lat: 41.88, lng: -87.63 },
+  "America/New_York": { zone: "ET", label: "Eastern Time (US)", lat: 40.71, lng: -74.0 },
+  "America/Anchorage": { zone: "AKT", label: "Alaska Time (US)", lat: 61.22, lng: -149.9 },
+  "Pacific/Honolulu": { zone: "HT", label: "Hawaii Time (US)", lat: 21.31, lng: -157.86 },
+};
+
+/**
+ * Reconcile an IP-derived GeoData with a browser-reported IANA time zone.
+ * - If the IP lookup found nothing, seed an approximate location from the zone.
+ * - If the IP's US state is in a DIFFERENT time zone than the browser reports,
+ *   trust the browser: relabel region to the zone and drop the (wrong) city.
+ * Otherwise the IP result is kept as-is. Never throws.
+ */
+export function reconcileGeo(geo: GeoData, tz: string | null): GeoData {
+  if (!tz) return geo;
+  const info = TZ_INFO[tz];
+  if (!info) return geo;
+
+  const ipHasLocation = !!(geo.country || geo.region || geo.lat != null);
+
+  // IP gave us nothing usable — approximate from the time zone.
+  if (!ipHasLocation) {
+    return {
+      ...geo,
+      country: "US",
+      region: info.label,
+      city: null,
+      lat: info.lat,
+      lng: info.lng,
+    };
+  }
+
+  // IP says US but its state's zone disagrees with the browser → IP is wrong.
+  const stateZone = geo.region ? STATE_ZONE[geo.region.toUpperCase()] : undefined;
+  if (geo.country === "US" && stateZone && stateZone !== info.zone) {
+    return {
+      ...geo,
+      region: info.label,
+      city: null,
+      lat: info.lat,
+      lng: info.lng,
+    };
+  }
+
+  return geo;
+}

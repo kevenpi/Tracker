@@ -28,7 +28,8 @@ export default function Toolbar({
       const res = await fetch("/api/groups", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
+        // Nest the new folder under the folder currently being viewed.
+        body: JSON.stringify({ name, parentId: currentGroupId }),
       });
       if (res.ok) {
         setName("");

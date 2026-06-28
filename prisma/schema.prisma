@@ -8,13 +8,22 @@ datasource db {
 }
 
 // A "folder" that trackers can be organized into (Drive-style).
+// Folders nest: `parentId` points at the containing folder (null = top level).
 model Group {
   id        String   @id @default(cuid())
   name      String
   createdAt DateTime @default(now())
+
+  // Self-relation for nesting. Deleting a folder moves its children up to the
+  // root (onDelete: SetNull) rather than cascading a destructive delete.
+  parentId  String?
+  parent    Group?   @relation("GroupTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Group[]  @relation("GroupTree")
+
   qrCodes   QrCode[]
 
   @@index([createdAt])
+  @@index([parentId])
 }
 
 model QrCode {
@@ -51,6 +60,10 @@ model Scan {
   city       String?
   lat        Float?
   lng        Float?
+
+  // Browser-reported IANA time zone (e.g. "America/Los_Angeles"), captured with
+  // no permission prompt. Used to correct an obviously-wrong IP region.
+  timezone   String?
 
   userAgent  String?
   deviceType String?

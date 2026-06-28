@@ -234,6 +234,7 @@ export default async function AnalyticsPage({
                       <tr>
                         <th className="py-2 font-medium">Time</th>
                         <th className="py-2 font-medium">Location</th>
+                        <th className="py-2 font-medium">Time zone</th>
                         <th className="py-2 font-medium">Device</th>
                         <th className="py-2 font-medium">OS / Browser</th>
                         <th className="py-2 font-medium">IP</th>
@@ -249,6 +250,9 @@ export default async function AnalyticsPage({
                             {[s.city, s.region, s.country]
                               .filter(Boolean)
                               .join(", ") || "—"}
+                          </td>
+                          <td className="py-2 font-mono text-xs text-zinc-500">
+                            {s.timezone ?? "—"}
                           </td>
                           <td className="py-2 text-zinc-500">
                             {s.deviceType ?? "—"}
